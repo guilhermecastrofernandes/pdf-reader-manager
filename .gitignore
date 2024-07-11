@@ -1,0 +1,23 @@
+# Diretórios
+bin/
+pkg/
+vendor/
+# Arquivos
+*.mod
+*.sum
+go.work
+go.build
+# Arquivos de teste
+*.test
+*.bench
+# Arquivos de documentação
+
+*.rst
+# Arquivos de IDE
+*.iml
+*.idea
+*.suo
+# Arquivos de configuração local
+.env
+*.txt
+.vscode/
