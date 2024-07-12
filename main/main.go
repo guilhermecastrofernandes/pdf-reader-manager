@@ -7,26 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"pdf-reader/domain"
+
 	"regexp"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/unidoc/unipdf/v3/model"
 )
-
-type Card struct {
-	Date  string
-	Store string
-	Value string
-	Name  string
-}
-
-type RequestData struct {
-	Date  string `json:"date"`
-	Store string `json:"store"`
-	Value string `json:"value"`
-	Name  string `json:"name"`
-}
 
 func main() {
 
@@ -44,10 +32,10 @@ func loadEnv() {
 }
 
 func readPdf() {
-	// Open PDF file.
 
-	cards := []Card{}
-	card := Card{}
+	card := domain.Card{}
+	cards := []domain.Card{}
+	newCards := append(cards, card)
 	name := ""
 
 	pdfFile, err := os.Open(os.Getenv("PDF_PATH"))
@@ -56,36 +44,33 @@ func readPdf() {
 
 	}
 
-	// Create a new reader of page.
 	reader, err := model.NewPdfReader(pdfFile)
 
 	if err != nil {
-		fmt.Println("Failed to create a pdf file:", err)
+		fmt.Println("Failed to create a reader pdf :", err)
 
 	}
 
-	// Get number of pages
 	numPages, err := reader.GetNumPages()
 	if err != nil {
 		fmt.Println("Failed to get number of pages:", err)
 
 	}
 	for i := 2; i <= numPages; i++ {
-		// Get main Page
-		page, err := reader.GetPage(i)
+		mainPage, err := reader.GetPage(i)
 		if err != nil {
 			fmt.Println("Failed to get main page", err)
 			continue
 		}
 
 		//Get text from page.
-		lines, err := page.GetContentStreams()
+		lines, err := mainPage.GetContentStreams()
 		if err != nil {
 			fmt.Println("Failed to extract text from page:", err)
 			continue
 		}
 
-		regexData := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
+		regexDate := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
 
 		arrayCount := 0
 
@@ -95,10 +80,12 @@ func readPdf() {
 			re := regexp.MustCompile(`\([^)]+\)`)
 			matches := re.FindAllString(line, -1)
 			for _, match := range matches {
-				extrated := match[1 : len(match)-1] // Remove parentheses due there are parentheses when read a pdf file.
-				fmt.Fprintln(&buffer, extrated)
+				// Remove parentheses due there are parentheses when read a pdf file.
+				extratedWithoutParentheses := match[1 : len(match)-1]
+				fmt.Fprintln(&buffer, extratedWithoutParentheses)
 
 			}
+
 			lineWithFilter := buffer.String()
 			lineIntoArray := strings.Split(lineWithFilter, "\n")
 
@@ -106,12 +93,12 @@ func readPdf() {
 				array := lineIntoArray
 				arrayCount++
 
-				if haveCard(line) {
+				if haveCardInformation(line) {
 					name = line
 
 				}
 
-				if regexData.MatchString(line) {
+				if regexDate.MatchString(line) {
 
 					position := arrayCount
 
@@ -121,7 +108,7 @@ func readPdf() {
 					card.Value = value
 					card.Date = line
 					card.Name = name
-					cards = append(cards, card)
+					newCards = append(newCards, card)
 
 				}
 			}
@@ -130,15 +117,15 @@ func readPdf() {
 
 	}
 
-	for _, currentCard := range cards {
+	for _, currentCard := range newCards {
 		fmt.Printf("Card Details:\n  Date:  %s\n  Store: %s\n  Value: %s\n  Name:  %s\n", currentCard.Date, currentCard.Store, currentCard.Value, currentCard.Name)
 		requestData := convertCardToRequestData(currentCard)
-		makePostRequest(requestData)
+		callSheetAPI(requestData)
 	}
 
 }
 
-func haveCard(line string) bool {
+func haveCardInformation(line string) bool {
 	cards := []string{os.Getenv("FIRST_USER_CARD"), os.Getenv("FIRST_USER_VIRTUAL_CARD"),
 		os.Getenv("SECOND_USER_CARD"), os.Getenv("SECOND_USER_VIRTUAL_CARD")}
 
@@ -150,7 +137,7 @@ func haveCard(line string) bool {
 	return false
 }
 
-func makePostRequest(data RequestData) (*http.Response, error) {
+func callSheetAPI(data domain.RequestData) (*http.Response, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -173,8 +160,8 @@ func makePostRequest(data RequestData) (*http.Response, error) {
 	return resp, nil
 }
 
-func convertCardToRequestData(card Card) RequestData {
-	return RequestData{
+func convertCardToRequestData(card domain.Card) domain.RequestData {
+	return domain.RequestData{
 		Date:  card.Date,
 		Store: card.Store,
 		Value: card.Value,
