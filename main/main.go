@@ -44,7 +44,6 @@ func readPdf() {
 
 	}
 
-	// Create a new reader of page.
 	reader, err := model.NewPdfReader(pdfFile)
 
 	if err != nil {
@@ -52,28 +51,26 @@ func readPdf() {
 
 	}
 
-	// Get number of pages
 	numPages, err := reader.GetNumPages()
 	if err != nil {
 		fmt.Println("Failed to get number of pages:", err)
 
 	}
 	for i := 2; i <= numPages; i++ {
-		// Get main Page
-		page, err := reader.GetPage(i)
+		mainPage, err := reader.GetPage(i)
 		if err != nil {
 			fmt.Println("Failed to get main page", err)
 			continue
 		}
 
 		//Get text from page.
-		lines, err := page.GetContentStreams()
+		lines, err := mainPage.GetContentStreams()
 		if err != nil {
 			fmt.Println("Failed to extract text from page:", err)
 			continue
 		}
 
-		regexData := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
+		regexDate := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
 
 		arrayCount := 0
 
@@ -83,10 +80,12 @@ func readPdf() {
 			re := regexp.MustCompile(`\([^)]+\)`)
 			matches := re.FindAllString(line, -1)
 			for _, match := range matches {
-				extrated := match[1 : len(match)-1] // Remove parentheses due there are parentheses when read a pdf file.
-				fmt.Fprintln(&buffer, extrated)
+				// Remove parentheses due there are parentheses when read a pdf file.
+				extratedWithoutParentheses := match[1 : len(match)-1]
+				fmt.Fprintln(&buffer, extratedWithoutParentheses)
 
 			}
+
 			lineWithFilter := buffer.String()
 			lineIntoArray := strings.Split(lineWithFilter, "\n")
 
@@ -94,12 +93,12 @@ func readPdf() {
 				array := lineIntoArray
 				arrayCount++
 
-				if haveCard(line) {
+				if haveCardInformation(line) {
 					name = line
 
 				}
 
-				if regexData.MatchString(line) {
+				if regexDate.MatchString(line) {
 
 					position := arrayCount
 
@@ -120,13 +119,13 @@ func readPdf() {
 
 	for _, currentCard := range newCards {
 		fmt.Printf("Card Details:\n  Date:  %s\n  Store: %s\n  Value: %s\n  Name:  %s\n", currentCard.Date, currentCard.Store, currentCard.Value, currentCard.Name)
-		//requestData := convertCardToRequestData(currentCard)
-		//callSheetAPI(requestData)
+		requestData := convertCardToRequestData(currentCard)
+		callSheetAPI(requestData)
 	}
 
 }
 
-func haveCard(line string) bool {
+func haveCardInformation(line string) bool {
 	cards := []string{os.Getenv("FIRST_USER_CARD"), os.Getenv("FIRST_USER_VIRTUAL_CARD"),
 		os.Getenv("SECOND_USER_CARD"), os.Getenv("SECOND_USER_VIRTUAL_CARD")}
 
