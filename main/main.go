@@ -7,26 +7,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"pdf-reader/domain"
+
 	"regexp"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/unidoc/unipdf/v3/model"
 )
-
-type Card struct {
-	Date  string
-	Store string
-	Value string
-	Name  string
-}
-
-type RequestData struct {
-	Date  string `json:"date"`
-	Store string `json:"store"`
-	Value string `json:"value"`
-	Name  string `json:"name"`
-}
 
 func main() {
 
@@ -44,10 +32,10 @@ func loadEnv() {
 }
 
 func readPdf() {
-	// Open PDF file.
 
-	cards := []Card{}
-	card := Card{}
+	card := domain.Card{}
+	cards := []domain.Card{}
+	newCards := append(cards, card)
 	name := ""
 
 	pdfFile, err := os.Open(os.Getenv("PDF_PATH"))
@@ -60,7 +48,7 @@ func readPdf() {
 	reader, err := model.NewPdfReader(pdfFile)
 
 	if err != nil {
-		fmt.Println("Failed to create a pdf file:", err)
+		fmt.Println("Failed to create a reader pdf :", err)
 
 	}
 
@@ -121,7 +109,7 @@ func readPdf() {
 					card.Value = value
 					card.Date = line
 					card.Name = name
-					cards = append(cards, card)
+					newCards = append(newCards, card)
 
 				}
 			}
@@ -130,10 +118,10 @@ func readPdf() {
 
 	}
 
-	for _, currentCard := range cards {
+	for _, currentCard := range newCards {
 		fmt.Printf("Card Details:\n  Date:  %s\n  Store: %s\n  Value: %s\n  Name:  %s\n", currentCard.Date, currentCard.Store, currentCard.Value, currentCard.Name)
-		requestData := convertCardToRequestData(currentCard)
-		makePostRequest(requestData)
+		//requestData := convertCardToRequestData(currentCard)
+		//callSheetAPI(requestData)
 	}
 
 }
@@ -150,7 +138,7 @@ func haveCard(line string) bool {
 	return false
 }
 
-func makePostRequest(data RequestData) (*http.Response, error) {
+func callSheetAPI(data domain.RequestData) (*http.Response, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -173,8 +161,8 @@ func makePostRequest(data RequestData) (*http.Response, error) {
 	return resp, nil
 }
 
-func convertCardToRequestData(card Card) RequestData {
-	return RequestData{
+func convertCardToRequestData(card domain.Card) domain.RequestData {
+	return domain.RequestData{
 		Date:  card.Date,
 		Store: card.Store,
 		Value: card.Value,
