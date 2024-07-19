@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"pdf-reader/domain"
 
 	"regexp"
@@ -38,79 +39,83 @@ func readPdf() {
 	newCards := append(cards, card)
 	name := ""
 
-	pdfFile, err := os.Open(os.Getenv("PDF_PATH"))
-	if err != nil {
-		fmt.Println("Failed to open file:", err)
+	files := loadPDF()
 
-	}
-
-	reader, err := model.NewPdfReader(pdfFile)
-
-	if err != nil {
-		fmt.Println("Failed to create a reader pdf :", err)
-
-	}
-
-	numPages, err := reader.GetNumPages()
-	if err != nil {
-		fmt.Println("Failed to get number of pages:", err)
-
-	}
-	for i := 2; i <= numPages; i++ {
-		mainPage, err := reader.GetPage(i)
+	for _, file := range files {
+		pdfFile, err := os.Open(file)
 		if err != nil {
-			fmt.Println("Failed to get main page", err)
-			continue
+			fmt.Println("Failed to open file:", err)
+
 		}
 
-		//Get text from page.
-		lines, err := mainPage.GetContentStreams()
+		reader, err := model.NewPdfReader(pdfFile)
 		if err != nil {
-			fmt.Println("Failed to extract text from page:", err)
-			continue
+			fmt.Println("Failed to create a reader pdf :", err)
+
 		}
 
-		regexDate := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
+		numPages, err := reader.GetNumPages()
+		if err != nil {
+			fmt.Println("Failed to get number of pages:", err)
 
-		arrayCount := 0
-
-		for _, line := range lines {
-			var buffer bytes.Buffer
-
-			re := regexp.MustCompile(`\([^)]+\)`)
-			matches := re.FindAllString(line, -1)
-			for _, match := range matches {
-				// Remove parentheses due there are parentheses when read a pdf file.
-				extratedWithoutParentheses := match[1 : len(match)-1]
-				fmt.Fprintln(&buffer, extratedWithoutParentheses)
-
+		}
+		for i := 2; i <= numPages; i++ {
+			mainPage, err := reader.GetPage(i)
+			if err != nil {
+				fmt.Println("Failed to get main page", err)
+				continue
 			}
 
-			lineWithFilter := buffer.String()
-			lineIntoArray := strings.Split(lineWithFilter, "\n")
+			//Get text from page.
+			lines, err := mainPage.GetContentStreams()
+			if err != nil {
+				fmt.Println("Failed to extract text from page:", err)
+				continue
+			}
 
-			for _, line := range lineIntoArray {
-				array := lineIntoArray
-				arrayCount++
+			regexDate := regexp.MustCompile(`^(0[1-9]|[12][0-9]|3[01])/(0[1-9]|1[0-2])$`)
 
-				if haveCardInformation(line) {
-					name = line
+			arrayCount := 0
 
-				}
+			for _, line := range lines {
+				var buffer bytes.Buffer
 
-				if regexDate.MatchString(line) {
-
-					position := arrayCount
-
-					store := array[position]
-					value := array[position+1]
-					card.Store = store
-					card.Value = value
-					card.Date = line
-					card.Name = name
-					newCards = append(newCards, card)
+				re := regexp.MustCompile(`\([^)]+\)`)
+				matches := re.FindAllString(line, -1)
+				for _, match := range matches {
+					// Remove parentheses due there are parentheses when read a pdf file.
+					extratedWithoutParentheses := match[1 : len(match)-1]
+					fmt.Fprintln(&buffer, extratedWithoutParentheses)
 
 				}
+
+				lineWithFilter := buffer.String()
+				lineIntoArray := strings.Split(lineWithFilter, "\n")
+
+				for _, line := range lineIntoArray {
+					array := lineIntoArray
+					arrayCount++
+
+					if haveCardInformation(line) {
+						name = line
+
+					}
+
+					if regexDate.MatchString(line) {
+
+						position := arrayCount
+
+						store := array[position]
+						value := array[position+1]
+						card.Store = store
+						card.Value = value
+						card.Date = line
+						card.Name = name
+						newCards = append(newCards, card)
+
+					}
+				}
+
 			}
 
 		}
@@ -123,6 +128,36 @@ func readPdf() {
 		callSheetAPI(requestData)
 	}
 
+}
+
+func loadPDF() []string {
+	pdfDirPath := os.Getenv("PDF_PATH")
+
+	if _, err := os.Stat(pdfDirPath); err != nil {
+		log.Fatal(err)
+	}
+
+	var paths []string
+
+	err := filepath.Walk(pdfDirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		fmt.Println("Processando arquivo:", path)
+		paths = append(paths, path)
+
+		return nil
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	return paths
 }
 
 func haveCardInformation(line string) bool {
